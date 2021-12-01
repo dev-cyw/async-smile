@@ -208,7 +208,6 @@ async def main():
         await asyncio.gather(*tasks)
         end_time = datetime.now()
         timer_task.cancel()
-        print("\x1bc")
         print("Finished attacking %s!" % url.geturl())
         print("Sent %s requests in %s" % (sent_requests, (end_time - start_time)))
     except KeyboardInterrupt:
