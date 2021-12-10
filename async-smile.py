@@ -39,16 +39,16 @@ except ImportError:
 
 INSECURE_BROWSER_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,"
-              "application/signed-exchange;v=b3;q=0.9",
+    "application/signed-exchange;v=b3;q=0.9",
     "Accept-Encoding": "gzip, deflate",
     "Accept-Language": "en-US,en;q=0.9",
     "Upgrade-Insecure-Requests": "1",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/96.0.4664.45 Safari/537.36",
+    "Chrome/96.0.4664.45 Safari/537.36",
 }
 SECURE_BROWSER_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,"
-              "application/signed-exchange;v=b3;q=0.9",
+    "application/signed-exchange;v=b3;q=0.9",
     "Accept-Encoding": "gzip, deflate, ",
     "Accept-Language": "en-US,en;q=0.9",
     "Sec-Ch-Ua": '" Not A;Brand";v="99", "Chromium";v="96", "Google Chrome";v="96"',
@@ -60,7 +60,7 @@ SECURE_BROWSER_HEADERS = {
     "Sec-Fetch-User": "?1",
     "Upgrade-Insecure-Requests": "1",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/96.0.4664.45 Safari/537.36",
+    "Chrome/96.0.4664.45 Safari/537.36",
 }
 _T = TypeVar("_T")
 
@@ -153,6 +153,7 @@ async def main_task(target: str, task_id: int, end_at: float = None):
                 )
         return
 
+
 tasks = []
 
 
@@ -201,14 +202,14 @@ async def main():
             "Warning: Websites that serve content compressed with brotli will cause errors."
         )
         print("You should run `main.py install`.")
-    
+
     try:
         input("Ready to fire. Just press enter. ")
     except (KeyboardInterrupt, EOFError):
         print("cancelled.")
         return
     start_time = datetime.now()
-    try:        
+    try:
         print("Starting.")
         start_event.set()
         timer_task = asyncio.ensure_future(counter_task())
@@ -218,12 +219,17 @@ async def main():
         print("Cancelled.")
     finally:
         try:
+            # noinspection PyUnboundLocalVariable
             timer_task.cancel()
         except NameError:
             pass
         end_time = datetime.now()
         print("Finished attacking %s!" % url.geturl())
-        print("Sent %s requests in %s" % (sent_requests, pretty_time((end_time - start_time).total_seconds())))
+        print(
+            "Sent %s requests in %s"
+            % (sent_requests, pretty_time(int((end_time - start_time).total_seconds())))
+        )
+
 
 if sys.version_info < (3, 7):
     loop = asyncio.get_event_loop()
