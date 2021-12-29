@@ -1,9 +1,11 @@
+import subprocess
 import time
 import copy
 import os
 import asyncio
 import sys
-from typing import TypeVar, Any
+from argparse import ArgumentParser
+from typing import TypeVar, Any, Callable
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
@@ -12,22 +14,40 @@ if os.name == "nt":
     asyncio.set_event_loop(asyncio.ProactorEventLoop())
     # This is required for windows to be able to open more than like 500 sockets.
 
-if len(sys.argv) >= 2:
-    if sys.argv[1] == "install":
-        import subprocess
+parser = ArgumentParser()
+parser.add_argument("--install", action="store_true", help="Installs the dependencies")
+parser.add_argument("-q", "--quiet", action="count", help="Lessens output.", default=0, dest="q")
+parser.add_argument("--timeout", action="store", type=float, help="Timeout connection", default=60.0)
 
-        file = (Path(__file__) / ".." / "requirements.txt").resolve()
+args = parser.parse_args()
+
+if args.install is True:
+    print("Installing dependencies...")
+    reqs = Path(__file__).parent / "requirements.txt"
+    executable = sys.executable
+    if sys.platform != "win32":
+        venv_path = Path(__file__).parent / "venv" / "bin" / "python3"
+    else:
+        venv_path = Path(__file__).parent / "venv" / "Scripts" / "python.exe"
+
+    if venv_path.exists():
+        executable = venv_path
+        print("Notice: Using the virtual environment located at {!s}.".format(venv_path.parent.parent))
         subprocess.run(
-            (sys.executable, "-m", "pip", "install", "--user", "-U", "-r", str(file))
+            (executable, "-m", "pip", "install", "-Ur", str(reqs.absolute()))
         )
-    elif sys.argv[1] == "help":
-        print("Commands:")
-        print("install - installs dependencies")
-    sys.exit()
+    else:
+        subprocess.run(
+            (executable, "-m", "pip", "install", "--user", "-Ur", str(reqs.absolute()))
+        )
+    print("Done")
+    sys.exit(0)
+
 
 try:
     import aiohttp
 except ModuleNotFoundError:
+    aiohttp = None
     print("Please install aiohttp.")
     sys.exit(1)
 
@@ -62,12 +82,12 @@ SECURE_BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/96.0.4664.45 Safari/537.36",
 }
-_T = TypeVar("_T")
 
 
-def get_input(prompt=None, *, func: _T = str, func_name: str = None) -> Any:
+def get_input(prompt=None, *, func: Callable[[str], Any] = str, func_name: str = None) -> Any:
     while True:
         x = input(prompt)
+        # noinspection PyBroadException
         try:
             return func(x)
         except Exception:
@@ -116,24 +136,27 @@ async def main_task(target: str, task_id: int, end_at: float = None):
         if target.startswith("https")
         else INSECURE_BROWSER_HEADERS
     )
-    async with aiohttp.ClientSession(headers=headers) as client:
+    async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(connect=args.timeout)) as client:
         global sent_requests
         while not end():
-            print("({}) <= GET {}".format(str(task_id).zfill(4), target))
+            if args.q < 1:
+                print("({}) <= GET {}".format(str(task_id).zfill(4), target))
             try:
+                sent_requests += 0.5
                 async with client.get(target) as response:
-                    sent_requests += 1
-                    print(
-                        "({}) => GET {} - {!s} {!s}".format(
-                            str(task_id).zfill(4),
-                            shorten(target, 12),
-                            response.status,
-                            response.reason,
+                    sent_requests += 0.5
+                    if args.q < 2:
+                        print(
+                            "({}) => GET {} - {!s} {!s}".format(
+                                str(task_id).zfill(4),
+                                shorten(target, 12),
+                                response.status,
+                                response.reason,
+                            )
                         )
-                    )
                     try:
                         await response.content.read(
-                            task_id
+                            max(1, min(task_id, 100))
                         )  # read a few bytes but do nothing with them.
                         # Theoretically, this means that the server will return the payload straight away
                         # Rather than deferring it until the response asks for it.
@@ -142,15 +165,25 @@ async def main_task(target: str, task_id: int, end_at: float = None):
                         pass
             except (RuntimeError, KeyboardInterrupt):
                 return
+            except aiohttp.ServerTimeoutError:
+                sent_requests -= 0.5
+                if args.q < 3:
+                    print(
+                        "({}) !! GET {} - Timeout".format(
+                            str(task_id).zfill(4), shorten(target, 12)
+                        )
+                    )
             except aiohttp.ClientConnectionError:
                 # This is fine, ignore it
                 continue
             except Exception as e:
-                print(
-                    "({}) !! GET {} - Error: {!r}".format(
-                        str(task_id).zfill(4), shorten(target, 12), e
+                sent_requests -= 0.5
+                if args.q < 3:
+                    print(
+                        "({}) !! GET {} - Error: {!r}".format(
+                            str(task_id).zfill(4), shorten(target, 12), e
+                        )
                     )
-                )
         return
 
 
@@ -238,5 +271,6 @@ if sys.version_info < (3, 7):
 else:
     try:
         asyncio.run(main())
+        print("Exited.")
     except KeyboardInterrupt:
         print("Exited.")
