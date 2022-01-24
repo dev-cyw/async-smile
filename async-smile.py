@@ -40,7 +40,7 @@ if args.install is True:
         subprocess.run(
             (executable, "-m", "pip", "install", "--user", "-Ur", str(reqs.absolute()))
         )
-    print("Done")
+    print("Done deez nuts")
     sys.exit(0)
 
 
